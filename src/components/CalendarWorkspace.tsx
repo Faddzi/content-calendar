@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clipboard, ExternalLink,
+  Building2, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clipboard, ExternalLink,
   LogOut, Moon, Plus, Search, Settings2, Sun, Users, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -75,6 +75,27 @@ export function CalendarWorkspace(props: Props) {
   useEffect(() => {
     window.localStorage.setItem("calday-theme", theme);
   }, [theme]);
+
+  // Keyboard shortcut: press N to open new-post dialog (when no input is focused)
+  useEffect(() => {
+    if (!canCreate) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== "n" || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (postDialogOpen || teamOpen || companiesOpen || settingsOpen || rangeOpen) return;
+      const target = e.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable) return;
+      const today = localDateKey(new Date());
+      setEditingPost(null);
+      setPostDate(today);
+      setPostCompany(companies[0]?.id || "");
+      setPostPlatform("X");
+      setPostTopic("");
+      setPostUrl("");
+      setPostDialogOpen(true);
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [canCreate, postDialogOpen, teamOpen, companiesOpen, settingsOpen, rangeOpen, companies]);
 
   const monthLabel = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone: "UTC" }).format(viewDate);
   const filteredPosts = posts.filter(post => {
@@ -286,11 +307,12 @@ export function CalendarWorkspace(props: Props) {
           {workspaces.length > 1 && <label className="workspace-select-wrap" aria-label="Active workspace"><select className="workspace-select" value={workspace.id} onChange={event => router.push(`/?workspace=${event.target.value}`)}>{workspaces.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select><ChevronDown size={14} /></label>}
           <span className="user-email">{userEmail}</span><span className={`role-chip role-${role}`}>{roleNames[role]}</span>
           <button className="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}><Settings2 size={17} /></button>
+          <button className="icon-button" type="button" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</button>
           <button className="icon-button" type="button" aria-label="Sign out" title="Sign out" onClick={signOut}><LogOut size={17} /></button>
         </div>
       </header>
       <section className="calendar-page">
-        <div className="page-heading"><div><p className="eyebrow">SHARED CONTENT CALENDAR</p><h1>Content Calendar</h1><p className="page-subtitle">Draftss.com and Deliveryman.ai publishing schedule</p></div><div className="heading-actions">{isAdmin && <button className="button-secondary" onClick={() => { setTeamOpen(true); setNotice(""); }}><Users size={15} /> Team access</button>}{isAdmin && <button className="button-secondary" onClick={() => { setCompaniesOpen(true); setNotice(""); }}><Settings2 size={15} /> Companies</button>}{canCreate && <button className="button-primary" onClick={() => openPost(todayKey)}><Plus size={16} /> New post</button>}</div></div>
+        <div className="page-heading"><div><p className="eyebrow">SHARED CONTENT CALENDAR</p><h1>Content Calendar</h1><p className="page-subtitle">{workspace.name}</p></div><div className="heading-actions">{isAdmin && <button className="button-secondary" onClick={() => { setTeamOpen(true); setNotice(""); }}><Users size={15} /> Team access</button>}{isAdmin && <button className="button-secondary" onClick={() => { setCompaniesOpen(true); setNotice(""); }}><Settings2 size={15} /> Companies</button>}{canCreate && <button className="button-primary" onClick={() => openPost(todayKey)}><Plus size={16} /> New post</button>}</div></div>
         <div className="calendar-toolbar">
           <div className="range-wrap"><button className={`button-secondary range-button ${range ? "selected" : ""}`} onClick={() => { setRangeOpen(value => !value); setRangeDraftStart(range?.start || `${todayKey.slice(0, 7)}-01`); setRangeDraftEnd(range?.end || todayKey); }} aria-expanded={rangeOpen}><CalendarDays size={15} />{range?.label || "All dates"}<ChevronDown size={13} /></button>{rangeOpen && <div className="range-popover"><div className="range-preset-list">{[["today","Today"],["yesterday","Yesterday"],["this-week","This week (Mon - today)"],["last-7","Last 7 days"],["last-week","Last week (Mon - Sun)"],["last-14","Last 14 days"],["this-month","This month"],["last-30","Last 30 days"],["last-month","Last month"]].map(([key,label]) => <button type="button" key={key} onClick={() => setPreset(key)}>{label}</button>)}<button type="button" onClick={() => { setRange(null); setCompare(false); setRangeOpen(false); }}>All dates</button></div><form className="range-custom" onSubmit={submitRange}><strong>Custom range</strong><label>Start<input type="date" value={rangeDraftStart} onChange={event => setRangeDraftStart(event.target.value)} required /></label><label>End<input type="date" value={rangeDraftEnd} onChange={event => setRangeDraftEnd(event.target.value)} required /></label><label className="compare-check"><input type="checkbox" checked={compare} onChange={event => setCompare(event.target.checked)} disabled={!range} />Compare previous period</label><button className="button-primary" type="submit">Apply dates</button></form></div>}</div>
           <label className="search-box"><Search size={16} /><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search topics or platforms" aria-label="Search calendar" /></label>
@@ -298,6 +320,23 @@ export function CalendarWorkspace(props: Props) {
         </div>
         <div className="company-filters"><button className={`filter-chip ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>All companies</button>{companies.map(company => <button className={`filter-chip ${filter === company.id ? "active" : ""}`} key={company.id} onClick={() => setFilter(company.id)}><span className="company-swatch" style={{ background: company.color }} />{company.name}</button>)}<span className="post-summary">{range ? `${filteredPosts.length} posts in range` : `${monthPosts.length} posts this month`}{previousRangeCount !== null ? <span className="compare-hint"> · previous {previousRangeCount}</span> : null}</span></div>
         {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss message" onClick={() => setNotice("")}><X size={14} /></button></div>}
+        {companies.length === 0 && (
+          <div className="empty-companies">
+            <Building2 size={22} />
+            <div className="empty-companies-body">
+              <strong>{isAdmin ? "Add your first company to start scheduling" : "No companies yet"}</strong>
+              <p>{isAdmin ? "Companies let you organise posts by client or brand. Add one to get started." : "Ask your workspace admin to add companies before scheduling posts."}</p>
+            </div>
+            {isAdmin && <button className="button-primary" onClick={() => { setCompaniesOpen(true); setNotice(""); }}>Add company</button>}
+          </div>
+        )}
+        {companies.length > 0 && monthPosts.length === 0 && !range && (
+          <div className="month-empty">
+            <CalendarDays size={14} />
+            <span>No posts scheduled in {monthLabel}.</span>
+            {canCreate && <button className="button-text" onClick={() => openPost(todayKey)}>Schedule one <kbd style={{fontSize:9,opacity:.6,fontFamily:"inherit"}}>N</kbd></button>}
+          </div>
+        )}
         <div className="calendar-frame"><div className="calendar-grid"><div className="weekday-row">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <div key={day}>{day}</div>)}</div><div className="days-grid">{calendarDays.map(day => {
           const key = day.toISOString().slice(0, 10);
           const dayPosts = postsByDate.get(key) || [];
