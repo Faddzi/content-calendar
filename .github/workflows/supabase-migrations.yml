@@ -1,0 +1,39 @@
+name: Supabase Migrations
+
+# Runs on every push to main — pushes pending SQL migrations
+# to the linked Supabase project automatically.
+#
+# REQUIRED GITHUB SECRETS (Settings → Secrets → Actions):
+#   SUPABASE_ACCESS_TOKEN   — your personal access token from supabase.com/dashboard/account/tokens
+#   SUPABASE_DB_PASSWORD    — your project's database password (Settings → Database in Supabase dashboard)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
+
+jobs:
+  deploy-migrations:
+    name: Push DB migrations
+    runs-on: ubuntu-latest
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        run: supabase link --project-ref fvurgbfccprtxrnfdsgs
+
+      - name: Push pending migrations
+        run: supabase db push
