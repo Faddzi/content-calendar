@@ -35,6 +35,10 @@ jobs:
       - name: Link Supabase project
         run: supabase link --project-ref fvurgbfccprtxrnfdsgs --password "$SUPABASE_DB_PASSWORD"
 
+      - name: Repair initial migration history
+        run: supabase migration repair --status applied 202609260001 --password "$SUPABASE_DB_PASSWORD"
+
       - name: Push pending migrations
         run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+
 
